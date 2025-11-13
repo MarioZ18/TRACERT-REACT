@@ -70,7 +70,7 @@ const NetworkDiagram = ({ networkData, traceResult }) => {
     networkData.forEach(net => {
       networkData.forEach(otherNet => {
         if (net.Equipo !== otherNet.Equipo && net.VLAN === otherNet.VLAN) {
-          if (isIPInNetwork(otherNet.IP, net.RED, net.Mascara) || isIPInNetwork(net.IP, otherNet.RED, otherNet.Mascara)) {
+          if (isIPInNetwork(otherNet.IP, net.Red, net.Mascara) || isIPInNetwork(net.IP, otherNet.Red, otherNet.Mascara)) {
             const edgeId = `${net.Equipo}-${otherNet.Equipo}`;
             const reverseEdgeId = `${otherNet.Equipo}-${net.Equipo}`;
 

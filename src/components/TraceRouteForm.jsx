@@ -57,6 +57,46 @@ const TraceRouteForm = ({ onExecute, disabled, equipos }) => {
   // Extrae lista única de equipos
   const uniqueEquipos = equipos ? [...new Set(equipos.map(e => e.Equipo))] : [];
 
+  // Sugerencias de pruebas basadas en la topología
+  const testSuggestions = [
+    {
+      name: 'Ruta completa (R1 → R2)',
+      description: 'Atraviesa toda la red: R1 → SW1 → SW2 → R2',
+      sourceEquipment: 'R1',
+      sourceIP: '192.168.1.1',
+      destIP: '172.16.1.1'
+    },
+    {
+      name: 'Ruta media (R1 → SW2)',
+      description: 'Llega hasta el penúltimo salto',
+      sourceEquipment: 'R1',
+      sourceIP: '192.168.1.1',
+      destIP: '192.168.30.2'
+    },
+    {
+      name: 'Desde el centro (SW1 → R2)',
+      description: 'Inicia desde equipo intermedio',
+      sourceEquipment: 'SW1',
+      sourceIP: '192.168.10.2',
+      destIP: '172.16.1.1'
+    },
+    {
+      name: 'Red directa',
+      description: 'Destino en la misma red del origen',
+      sourceEquipment: 'R1',
+      sourceIP: '192.168.1.1',
+      destIP: '192.168.1.254'
+    }
+  ];
+
+  // Cargar sugerencia de prueba
+  const loadTestSuggestion = (suggestion) => {
+    setSourceEquipment(suggestion.sourceEquipment);
+    setSourceIP(suggestion.sourceIP);
+    setDestIP(suggestion.destIP);
+    setErrors({});
+  };
+
   return (
     <div className="w-full bg-white rounded-lg shadow-md p-6">
       <h2 className="text-xl font-semibold text-gray-800 mb-4">
@@ -131,6 +171,52 @@ const TraceRouteForm = ({ onExecute, disabled, equipos }) => {
           {disabled ? 'Carga un archivo CSV primero' : 'Ejecutar Traceroute'}
         </button>
       </form>
+
+      {/* Sugerencias de pruebas */}
+      {!disabled && uniqueEquipos.length > 0 && (
+        <div className="mt-6 pt-6 border-t border-gray-200">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">
+            Pruebas Sugeridas
+          </h3>
+          <div className="space-y-2">
+            {testSuggestions.map((suggestion, index) => (
+              <button
+                key={index}
+                type="button"
+                onClick={() => loadTestSuggestion(suggestion)}
+                className="w-full text-left p-3 border border-gray-200 rounded-md hover:border-blue-400 hover:bg-blue-50 transition-colors group"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-800 group-hover:text-blue-700">
+                      {suggestion.name}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {suggestion.description}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1 font-mono">
+                      {suggestion.sourceIP} → {suggestion.destIP}
+                    </p>
+                  </div>
+                  <svg
+                    className="w-4 h-4 text-gray-400 group-hover:text-blue-600 flex-shrink-0 mt-1"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5l7 7-7 7"
+                    />
+                  </svg>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

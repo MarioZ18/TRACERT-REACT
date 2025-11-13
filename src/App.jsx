@@ -146,7 +146,7 @@ const handleNetworkError = (errorMessage) => {
           <div className="lg:col-span-2 space-y-6">
             {/* Diagrama de red */}
             <NetworkDiagram
-              routingData={networkData}
+              networkData={networkData}
               traceResult={traceResult}
             />
 

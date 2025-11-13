@@ -1,57 +1,41 @@
 /**
- * Algoritmo de Traceroute basado en tablas de ruteo estáticas
- * Simula el recorrido de un paquete desde una IP origen a una IP destino
+ * Algoritmo de Traceroute basado en la nueva tabla de redes con IP de gateway
  */
 
-/**
- * Convierte una IP a número para comparaciones
- */
 const ipToNumber = (ip) => {
   const parts = ip.split('.').map(Number);
   return (parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3];
 };
 
-/**
- * Verifica si una IP pertenece a una red específica
- * @param {string} ip - IP a verificar (ej: "192.168.1.5")
- * @param {string} network - Red (ej: "192.168.1.0")
- * @param {string} mask - Máscara en formato CIDR (ej: "/24")
- */
 const isIPInNetwork = (ip, network, mask) => {
-  if (!ip || !network || !mask) return false;
-
   try {
     const maskBits = parseInt(mask.replace('/', ''));
     const ipNum = ipToNumber(ip);
     const networkNum = ipToNumber(network);
     const maskNum = (-1 << (32 - maskBits)) >>> 0;
-
     return (ipNum & maskNum) === (networkNum & maskNum);
-  } catch (error) {
+  } catch {
     return false;
   }
 };
 
-/**
- * Busca la entrada de ruteo más específica para una IP destino
- * @param {string} equipmentName - Nombre del equipo actual
- * @param {string} destIP - IP destino
- * @param {Array} routingTable - Tabla de ruteo completa
- */
+// Validar si una IP pertenece a alguna red de un equipo
+const validateIPInEquipmentNetworks = (equipment, ip, networkData) => {
+  const networks = networkData.filter(n => n.Equipo === equipment);
+  return networks.some(n => isIPInNetwork(ip, n.Red, n.Mascara));
+};
+
+// Buscar siguiente equipo según IP de gateway
+const findNextEquipmentByGatewayIP = (gatewayIP, networkData) => {
+  const entry = networkData.find(n => n.IP === gatewayIP);
+  return entry ? entry.Equipo : null;
+};
+
+// Buscar ruta más específica en tabla de ruteo
 const findRouteEntry = (equipmentName, destIP, routingTable) => {
-  // Filtrar entradas de este equipo
-  const equipmentRoutes = routingTable.filter(
-    route => route.Equipo === equipmentName
-  );
-
-  // Buscar coincidencias con la IP destino
-  const matches = equipmentRoutes.filter(route =>
-    isIPInNetwork(destIP, route.IP_Destino, route.Mascara)
-  );
-
+  const equipmentRoutes = routingTable.filter(r => r.Equipo === equipmentName);
+  const matches = equipmentRoutes.filter(r => isIPInNetwork(destIP, r.IP_Destino, r.Mascara));
   if (matches.length === 0) return null;
-
-  // Retornar la ruta más específica (máscara más larga)
   return matches.reduce((best, current) => {
     const bestMask = parseInt(best.Mascara.replace('/', ''));
     const currentMask = parseInt(current.Mascara.replace('/', ''));
@@ -59,172 +43,75 @@ const findRouteEntry = (equipmentName, destIP, routingTable) => {
   });
 };
 
-/**
- * Encuentra qué equipo tiene conexión directa a un gateway
- * @param {string} gateway - IP del gateway
- * @param {Array} routingTable - Tabla de ruteo completa
- * @param {string} currentEquipment - Equipo actual (para excluirlo)
- */
-const findEquipmentByGateway = (gateway, routingTable, currentEquipment) => {
-  // Buscar equipos que tengan una ruta directa a la red del gateway
-  // IMPORTANTE: Excluir el equipo actual para evitar loops
-  for (const route of routingTable) {
-    if (route.Equipo !== currentEquipment &&
-        route.Gateway.toLowerCase() === 'directo' &&
-        isIPInNetwork(gateway, route.IP_Destino, route.Mascara)) {
-      return route.Equipo;
-    }
-  }
-
-  return null;
-};
-
-/**
- * Ejecuta el algoritmo de traceroute
- * @param {string} sourceEquipment - Nombre del equipo origen
- * @param {string} sourceIP - IP origen
- * @param {string} destIP - IP destino
- * @param {Array} routingTable - Tabla de ruteo completa
- * @returns {Object} Resultado con éxito/error y lista de saltos
- */
-export const executeTraceroute = (sourceEquipment, sourceIP, destIP, routingTable) => {
+// Función principal
+export const executeTraceroute = (sourceEquipment, sourceIP, destIP, routingTable, networkData) => {
   const hops = [];
   const visitedEquipment = new Set();
   let currentEquipment = sourceEquipment;
-  const MAX_HOPS = 30; // Límite de seguridad
+  const MAX_HOPS = 30;
 
-  // Validación inicial
+  // Validaciones iniciales
   if (!sourceEquipment || !sourceIP || !destIP || !routingTable || routingTable.length === 0) {
-    return {
-      success: false,
-      error: 'Parámetros inválidos o tabla de ruteo vacía',
-      hops: [],
-      sourceEquipment,
-      sourceIP,
-      destIP,
-    };
+    return { success: false, error: 'Parámetros inválidos o tabla de ruteo vacía', hops };
   }
 
-  // Verificar que el equipo origen existe en la tabla
   const equipmentExists = routingTable.some(r => r.Equipo === sourceEquipment);
   if (!equipmentExists) {
-    return {
-      success: false,
-      error: `El equipo "${sourceEquipment}" no existe en la tabla de ruteo`,
-      hops: [],
-      sourceEquipment,
-      sourceIP,
-      destIP,
-    };
+    return { success: false, error: `El equipo "${sourceEquipment}" no existe en la tabla de ruteo`, hops };
+  }
+
+  if (!validateIPInEquipmentNetworks(sourceEquipment, sourceIP, networkData)) {
+    return { success: false, error: `La IP de origen ${sourceIP} no pertenece a ninguna red del equipo "${sourceEquipment}"`, hops };
   }
 
   // Algoritmo de traceroute
-  try {
-    for (let hopCount = 0; hopCount < MAX_HOPS; hopCount++) {
-      // Detectar loop
-      if (visitedEquipment.has(currentEquipment)) {
-        return {
-          success: false,
-          error: `Loop infinito detectado en el equipo "${currentEquipment}"`,
-          hops,
-          sourceEquipment,
-          sourceIP,
-          destIP,
-        };
-      }
+  for (let hopCount = 0; hopCount < MAX_HOPS; hopCount++) {
+    if (visitedEquipment.has(currentEquipment)) {
+      return { success: false, error: `Loop detectado en "${currentEquipment}"`, hops };
+    }
+    visitedEquipment.add(currentEquipment);
 
-      visitedEquipment.add(currentEquipment);
-
-      // Buscar entrada de ruteo para la IP destino
-      const routeEntry = findRouteEntry(currentEquipment, destIP, routingTable);
-
-      if (!routeEntry) {
-        return {
-          success: false,
-          error: `No existe ruta hacia ${destIP} desde el equipo "${currentEquipment}"`,
-          hops,
-          sourceEquipment,
-          sourceIP,
-          destIP,
-        };
-      }
-
-      // Si el gateway es "directo", hemos llegado al destino
-      if (routeEntry.Gateway.toLowerCase() === 'directo') {
-        hops.push({
-          currentEquipment,
-          destNetwork: `${routeEntry.IP_Destino}${routeEntry.Mascara}`,
-          gateway: 'directo',
-          nextEquipment: null,
-        });
-
-        return {
-          success: true,
-          error: null,
-          hops,
-          sourceEquipment,
-          sourceIP,
-          destIP,
-        };
-      }
-
-      // Buscar el siguiente equipo usando el gateway (excluyendo el equipo actual)
-      const nextEquipment = findEquipmentByGateway(routeEntry.Gateway, routingTable, currentEquipment);
-
-      if (!nextEquipment) {
-        return {
-          success: false,
-          error: `No se puede resolver el gateway ${routeEntry.Gateway} desde "${currentEquipment}"`,
-          hops,
-          sourceEquipment,
-          sourceIP,
-          destIP,
-        };
-      }
-
-      // Agregar salto
-      hops.push({
-        currentEquipment,
-        destNetwork: `${routeEntry.IP_Destino}${routeEntry.Mascara}`,
-        gateway: routeEntry.Gateway,
-        nextEquipment,
-      });
-
-      // Avanzar al siguiente equipo
-      currentEquipment = nextEquipment;
+    // Verificar si IP destino ya está en alguna red del equipo actual
+    if (validateIPInEquipmentNetworks(currentEquipment, destIP, networkData)) {
+      hops.push({ currentEquipment, destNetwork: 'Directo', gateway: null, reachedDestination: true });
+      return { success: true, error: null, hops };
     }
 
-    // Si llegamos aquí, excedimos el límite de saltos
-    return {
-      success: false,
-      error: `Se excedió el límite de ${MAX_HOPS} saltos`,
-      hops,
-      sourceEquipment,
-      sourceIP,
-      destIP,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: `Error interno: ${error.message}`,
-      hops,
-      sourceEquipment,
-      sourceIP,
-      destIP,
-    };
+    // Buscar ruta en tabla de ruteo
+    const routeEntry = findRouteEntry(currentEquipment, destIP, routingTable);
+    if (!routeEntry) {
+      return { success: false, error: `No existe ruta hacia ${destIP} desde "${currentEquipment}"`, hops };
+    }
+
+    // Si la ruta es directa
+    if (routeEntry.Gateway.toLowerCase() === 'directo') {
+      hops.push({ currentEquipment, destNetwork: `${routeEntry.IP_Destino}${routeEntry.Mascara}`, gateway: 'directo', reachedDestination: true });
+      return { success: true, error: null, hops };
+    }
+
+    // Encontrar siguiente equipo según IP del gateway
+    const nextEquipment = findNextEquipmentByGatewayIP(routeEntry.Gateway, networkData);
+    if (!nextEquipment) {
+      return { success: false, error: `No se puede resolver el gateway ${routeEntry.Gateway} desde "${currentEquipment}"`, hops };
+    }
+
+    hops.push({
+      currentEquipment,
+      destNetwork: `${routeEntry.IP_Destino}${routeEntry.Mascara}`,
+      gateway: routeEntry.Gateway,
+      nextEquipment,
+      reachedDestination: false
+    });
+
+    currentEquipment = nextEquipment;
   }
+
+  return { success: false, error: `Se excedió el límite de ${MAX_HOPS} saltos`, hops };
 };
 
-/**
- * Valida formato de IP
- */
+// Validación de IP
 export const validateIP = (ip) => {
   const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
   if (!ipRegex.test(ip)) return false;
-
-  const parts = ip.split('.');
-  return parts.every(part => {
-    const num = parseInt(part, 10);
-    return num >= 0 && num <= 255;
-  });
+  return ip.split('.').every(p => { const n = parseInt(p); return n >= 0 && n <= 255; });
 };

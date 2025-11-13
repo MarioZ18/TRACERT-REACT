@@ -38,7 +38,8 @@ traceroute-simulator/
 │   └── example-routing-table.csv    # Tabla de ruteo de ejemplo
 ├── src/
 │   ├── components/
-│   │   ├── FileUploader.jsx         # Componente para cargar CSV
+│   │   ├── FileUploader.jsx         # Componente para cargar CSV rutas
+│   │   ├── NetworkUploader.jsx      # Componente para cargar CSV red 
 │   │   ├── TraceRouteForm.jsx       # Formulario de entrada
 │   │   ├── NetworkDiagram.jsx       # Diagrama de red interactivo
 │   │   ├── HopsTable.jsx            # Tabla de saltos

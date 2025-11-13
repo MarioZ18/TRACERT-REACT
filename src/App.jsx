@@ -5,6 +5,8 @@ import NetworkDiagram from './components/NetworkDiagram';
 import HopsTable from './components/HopsTable';
 import ResultsSummary from './components/ResultsSummary';
 import { executeTraceroute } from './utils/traceroute';
+import NetworkUploader from './components/NetworkUploader';
+
 
 /**
  * App Component - Componente principal
@@ -17,6 +19,8 @@ function App() {
   const [routingData, setRoutingData] = useState([]);
   const [traceResult, setTraceResult] = useState(null);
   const [error, setError] = useState(null);
+  const [networkData, setNetworkData] = useState([]);
+
 
   // Maneja la carga de datos desde el CSV
   const handleDataLoaded = (data) => {
@@ -37,6 +41,24 @@ function App() {
     setTraceResult(null);
   };
 
+  // Maneja la carga de redes desde CSV
+const handleNetworksLoaded = (data) => {
+  const clonedData = [...data];
+  setTimeout(() => {
+    setNetworkData(clonedData);
+    setTraceResult(null);
+    setError(null);
+  }, 0);
+};
+
+// Maneja errores del NetworkUploader
+const handleNetworkError = (errorMessage) => {
+  setError(errorMessage);
+  setNetworkData([]);
+  setTraceResult(null);
+};
+
+
   // Ejecuta el traceroute cuando el usuario presiona el botón
   const handleExecuteTraceroute = ({ sourceEquipment, sourceIP, destIP }) => {
     try {
@@ -44,7 +66,8 @@ function App() {
         sourceEquipment,
         sourceIP,
         destIP,
-        routingData
+        routingData,
+        networkData 
       );
       setTraceResult(result);
       setError(result.success ? null : result.error);
@@ -101,11 +124,18 @@ function App() {
               onError={handleFileError}
             />
 
+            {/* Network Uploader */}
+            <NetworkUploader
+            
+              onNetworksLoaded={handleNetworksLoaded}
+              onError={handleNetworkError}
+            />
+
             {/* Formulario de Traceroute */}
             <TraceRouteForm
               onExecute={handleExecuteTraceroute}
-              disabled={routingData.length === 0}
-              equipos={routingData}
+              disabled={networkData.length === 0}
+              equipos={networkData}
             />
 
             {/* Resumen de resultados */}
@@ -116,7 +146,7 @@ function App() {
           <div className="lg:col-span-2 space-y-6">
             {/* Diagrama de red */}
             <NetworkDiagram
-              routingData={routingData}
+              routingData={networkData}
               traceResult={traceResult}
             />
 

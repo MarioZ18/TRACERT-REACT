@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import FileUploader from './components/FileUploader';
 import TraceRouteForm from './components/TraceRouteForm';
 import NetworkDiagram from './components/NetworkDiagram';
@@ -6,6 +6,8 @@ import HopsTable from './components/HopsTable';
 import ResultsSummary from './components/ResultsSummary';
 import { executeTraceroute } from './utils/traceroute';
 import NetworkUploader from './components/NetworkUploader';
+import DataManager from './components/DataManager';
+import IPSearcher from './components/IPSearcher';
 
 
 /**
@@ -14,13 +16,79 @@ import NetworkUploader from './components/NetworkUploader';
  * - Tabla de ruteo cargada desde CSV
  * - Resultado del traceroute
  * - Errores y validaciones
+ * - Persistencia con localStorage
  */
 function App() {
-  const [routingData, setRoutingData] = useState([]);
+  // Cargar datos desde localStorage al iniciar
+  const loadFromLocalStorage = (key, defaultValue = []) => {
+    try {
+      const stored = localStorage.getItem(key);
+      return stored ? JSON.parse(stored) : defaultValue;
+    } catch (error) {
+      console.error(`Error loading ${key} from localStorage:`, error);
+      return defaultValue;
+    }
+  };
+
+  const [routingData, setRoutingData] = useState(() => loadFromLocalStorage('routingData', []));
   const [traceResult, setTraceResult] = useState(null);
   const [error, setError] = useState(null);
-  const [networkData, setNetworkData] = useState([]);
+  const [networkData, setNetworkData] = useState(() => loadFromLocalStorage('networkData', []));
+  const [isDataManagerOpen, setIsDataManagerOpen] = useState(false);
+  const [isIPSearcherOpen, setIsIPSearcherOpen] = useState(false);
 
+  // Guardar en localStorage cuando cambien los datos
+  useEffect(() => {
+    localStorage.setItem('networkData', JSON.stringify(networkData));
+  }, [networkData]);
+
+  useEffect(() => {
+    localStorage.setItem('routingData', JSON.stringify(routingData));
+  }, [routingData]);
+
+  // Limpiar localStorage
+  const clearLocalStorage = () => {
+    localStorage.removeItem('networkData');
+    localStorage.removeItem('routingData');
+    localStorage.removeItem('manualEdges');
+    setNetworkData([]);
+    setRoutingData([]);
+    setTraceResult(null);
+    setError(null);
+  };
+
+  // Exportar datos como JSON
+  const exportData = () => {
+    const manualEdges = localStorage.getItem('manualEdges');
+    const data = {
+      networkData,
+      routingData,
+      manualEdges: manualEdges ? JSON.parse(manualEdges) : [],
+      exportDate: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `traceroute-data-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Importar datos desde JSON
+  const handleImport = (imported) => {
+    if (imported.networkData) {
+      setNetworkData(imported.networkData);
+    }
+    if (imported.routingData) {
+      setRoutingData(imported.routingData);
+    }
+    if (imported.manualEdges) {
+      localStorage.setItem('manualEdges', JSON.stringify(imported.manualEdges));
+    }
+    setTraceResult(null);
+    setError(null);
+  };
 
   // Maneja la carga de datos desde el CSV
   const handleDataLoaded = (data) => {
@@ -126,7 +194,6 @@ const handleNetworkError = (errorMessage) => {
 
             {/* Network Uploader */}
             <NetworkUploader
-            
               onNetworksLoaded={handleNetworksLoaded}
               onError={handleNetworkError}
             />
@@ -148,6 +215,9 @@ const handleNetworkError = (errorMessage) => {
             <NetworkDiagram
               networkData={networkData}
               traceResult={traceResult}
+              onNetworkUpdate={setNetworkData}
+              routingData={routingData}
+              onRoutingUpdate={setRoutingData}
             />
 
             {/* Tabla de saltos */}
@@ -157,42 +227,132 @@ const handleNetworkError = (errorMessage) => {
 
         {/* Footer con instrucciones */}
         <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-blue-900 mb-2">
-            📘 Instrucciones de uso
+          <h3 className="text-lg font-semibold text-blue-900 mb-3">
+            📘 Guía de Uso del Simulador
           </h3>
-          <ol className="list-decimal list-inside space-y-2 text-sm text-blue-800">
-            <li>
-              Carga un archivo CSV con las tablas de ruteo (formato: Equipo,
-              IP_Destino, Mascara, Gateway)
-            </li>
-            <li>Selecciona el equipo origen desde el cual iniciar el traceroute</li>
-            <li>Ingresa la IP origen (puede ser cualquier IP dentro de la red del equipo)</li>
-            <li>Ingresa la IP destino que deseas alcanzar</li>
-            <li>
-              Presiona "Ejecutar Traceroute" para ver la ruta y el diagrama de
-              red
-            </li>
-          </ol>
-          <div className="mt-4 text-sm text-blue-700">
-            <p>
-              💡 <strong>Tip:</strong> Si estás ejecutando el proyecto localmente, puedes encontrar un archivo CSV de ejemplo en{' '}
-              <code className="bg-blue-100 px-2 py-1 rounded">
-                public/example-routing-table.csv
-              </code>
-            </p>
-            <p className="mt-2">
-              📥 O puedes{' '}
-              <a
-                href="./example-routing-table.csv"
-                download="example-routing-table.csv"
-                className="font-semibold underline hover:text-blue-900"
-              >
-                descargar este archivo de ejemplo
-              </a>
-              {' '}para probarlo.
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+            {/* Inicio Rápido */}
+            <div>
+              <h4 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                <span className="bg-blue-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">1</span>
+                Inicio Rápido
+              </h4>
+              <ol className="list-disc list-inside space-y-1 text-sm text-blue-800 ml-2">
+                <li>Carga <strong>redes.csv</strong> (topología de red)</li>
+                <li>Carga <strong>rutas.csv</strong> (tablas de ruteo)</li>
+                <li>El diagrama se generará automáticamente</li>
+                <li>Usa las <strong>pruebas sugeridas</strong> o configura manualmente</li>
+                <li>Click en <strong>"Ejecutar Traceroute"</strong></li>
+              </ol>
+            </div>
+
+            {/* Edición de Topología */}
+            <div>
+              <h4 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                <span className="bg-green-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">2</span>
+                Edición de Topología
+              </h4>
+              <ol className="list-disc list-inside space-y-1 text-sm text-blue-800 ml-2">
+                <li>Click en <strong>"Modo Edición"</strong> en el diagrama</li>
+                <li><strong>Agregar Nodo:</strong> Configura interfaces y rutas</li>
+                <li><strong>Editar Nodo:</strong> Selecciona y modifica propiedades</li>
+                <li><strong>Conectar Nodos:</strong> Arrastra entre equipos</li>
+                <li><strong>Enrutamiento automático:</strong> Se sugieren rutas al conectar</li>
+              </ol>
+            </div>
+
+            {/* Herramientas Avanzadas */}
+            <div>
+              <h4 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                <span className="bg-purple-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">🔍</span>
+                Búsqueda de IP
+              </h4>
+              <p className="text-sm text-blue-800 ml-2">
+                Click en el botón <strong>morado flotante</strong> (esquina inferior derecha) para buscar
+                qué equipos tienen rutas hacia una IP específica.
+              </p>
+            </div>
+
+            {/* Gestión de Datos */}
+            <div>
+              <h4 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                <span className="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">💾</span>
+                Gestión de Datos
+              </h4>
+              <p className="text-sm text-blue-800 ml-2">
+                Click en el botón <strong>índigo flotante</strong> para:
+                <br/>• Importar/Exportar configuraciones (JSON)
+                <br/>• Ver estadísticas de almacenamiento
+                <br/>• Limpiar datos guardados
+              </p>
+            </div>
+          </div>
+
+          {/* Tips adicionales */}
+          <div className="mt-4 pt-4 border-t border-blue-300">
+            <h4 className="font-semibold text-blue-900 mb-2">💡 Tips Útiles</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-blue-700">
+              <div>• Los datos se guardan automáticamente en tu navegador</div>
+              <div>• Las pruebas sugeridas se actualizan con la topología</div>
+              <div>• Arrastra los nodos para reorganizar el diagrama</div>
+              <div>• Las conexiones manuales persisten al recargar</div>
+              <div>• Exporta regularmente para crear respaldos</div>
+              <div>• Las rutas en azul muestran el path del traceroute</div>
+            </div>
+          </div>
+
+          {/* Archivos de ejemplo */}
+          <div className="mt-4 pt-4 border-t border-blue-300">
+            <p className="text-sm text-blue-800">
+              📂 <strong>Archivos de ejemplo:</strong>{' '}
+              <code className="bg-blue-100 px-2 py-1 rounded text-xs">public/redes.csv</code>
+              {' • '}
+              <code className="bg-blue-100 px-2 py-1 rounded text-xs">public/rutas.csv</code>
             </p>
           </div>
         </div>
+
+        {/* Botones flotantes */}
+        <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-40">
+          <button
+            onClick={() => setIsIPSearcherOpen(true)}
+            className="bg-purple-600 text-white p-4 rounded-full shadow-lg hover:bg-purple-700 transition-all hover:scale-110 flex items-center justify-center group"
+            title="Buscar IP"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </button>
+
+          <button
+            onClick={() => setIsDataManagerOpen(true)}
+            className="bg-indigo-600 text-white p-4 rounded-full shadow-lg hover:bg-indigo-700 transition-all hover:scale-110 flex items-center justify-center group"
+            title="Gestión de Datos"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Modales */}
+        <DataManager
+          isOpen={isDataManagerOpen}
+          onClose={() => setIsDataManagerOpen(false)}
+          onClear={clearLocalStorage}
+          onExport={exportData}
+          onImport={handleImport}
+          networkData={networkData}
+          routingData={routingData}
+        />
+
+        <IPSearcher
+          isOpen={isIPSearcherOpen}
+          onClose={() => setIsIPSearcherOpen(false)}
+          routingData={routingData}
+          networkData={networkData}
+        />
       </div>
     </div>
   );

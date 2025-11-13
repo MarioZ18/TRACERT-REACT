@@ -57,37 +57,119 @@ const TraceRouteForm = ({ onExecute, disabled, equipos }) => {
   // Extrae lista única de equipos
   const uniqueEquipos = equipos ? [...new Set(equipos.map(e => e.Equipo))] : [];
 
-  // Sugerencias de pruebas basadas en la topología
-  const testSuggestions = [
-    {
-      name: 'Ruta completa (R1 → R2)',
-      description: 'Atraviesa toda la red: R1 → SW1 → SW2 → R2',
-      sourceEquipment: 'R1',
-      sourceIP: '192.168.1.1',
-      destIP: '172.16.1.1'
-    },
-    {
-      name: 'Ruta media (R1 → SW2)',
-      description: 'Llega hasta el penúltimo salto',
-      sourceEquipment: 'R1',
-      sourceIP: '192.168.1.1',
-      destIP: '192.168.30.2'
-    },
-    {
-      name: 'Desde el centro (SW1 → R2)',
-      description: 'Inicia desde equipo intermedio',
-      sourceEquipment: 'SW1',
-      sourceIP: '192.168.10.2',
-      destIP: '172.16.1.1'
-    },
-    {
-      name: 'Red directa',
-      description: 'Destino en la misma red del origen',
-      sourceEquipment: 'R1',
-      sourceIP: '192.168.1.1',
-      destIP: '192.168.1.254'
+  // Generar sugerencias de pruebas dinámicas basadas en la topología actual
+  const generateTestSuggestions = () => {
+    if (!equipos || equipos.length === 0) return [];
+
+    const suggestions = [];
+    const equipmentList = uniqueEquipos;
+
+    // Si hay al menos 2 equipos
+    if (equipmentList.length >= 2) {
+      const firstEquip = equipmentList[0];
+      const lastEquip = equipmentList[equipmentList.length - 1];
+
+      // Obtener primera IP del primer equipo
+      const firstEquipInterface = equipos.find(e => e.Equipo === firstEquip);
+      const lastEquipInterface = equipos.find(e => e.Equipo === lastEquip);
+
+      if (firstEquipInterface && lastEquipInterface) {
+        suggestions.push({
+          name: `Ruta completa (${firstEquip} → ${lastEquip})`,
+          description: `Prueba la ruta más larga disponible`,
+          sourceEquipment: firstEquip,
+          sourceIP: firstEquipInterface.IP,
+          destIP: lastEquipInterface.IP
+        });
+      }
     }
-  ];
+
+    // Si hay al menos 3 equipos, crear ruta intermedia
+    if (equipmentList.length >= 3) {
+      const firstEquip = equipmentList[0];
+      const middleEquip = equipmentList[Math.floor(equipmentList.length / 2)];
+
+      const firstEquipInterface = equipos.find(e => e.Equipo === firstEquip);
+      const middleEquipInterface = equipos.find(e => e.Equipo === middleEquip);
+
+      if (firstEquipInterface && middleEquipInterface) {
+        suggestions.push({
+          name: `Ruta media (${firstEquip} → ${middleEquip})`,
+          description: `Prueba hasta un equipo intermedio`,
+          sourceEquipment: firstEquip,
+          sourceIP: firstEquipInterface.IP,
+          destIP: middleEquipInterface.IP
+        });
+      }
+    }
+
+    // Si hay al menos 2 equipos, prueba desde el centro
+    if (equipmentList.length >= 2) {
+      const middleIdx = Math.floor(equipmentList.length / 2);
+      const middleEquip = equipmentList[middleIdx];
+      const targetEquip = equipmentList[equipmentList.length - 1];
+
+      const middleEquipInterface = equipos.find(e => e.Equipo === middleEquip);
+      const targetEquipInterface = equipos.find(e => e.Equipo === targetEquip);
+
+      if (middleEquipInterface && targetEquipInterface && middleEquip !== targetEquip) {
+        suggestions.push({
+          name: `Desde el centro (${middleEquip} → ${targetEquip})`,
+          description: `Inicia desde equipo intermedio`,
+          sourceEquipment: middleEquip,
+          sourceIP: middleEquipInterface.IP,
+          destIP: targetEquipInterface.IP
+        });
+      }
+    }
+
+    // Prueba de red directa
+    if (equipmentList.length >= 1) {
+      const firstEquip = equipmentList[0];
+      const firstEquipInterface = equipos.find(e => e.Equipo === firstEquip);
+
+      if (firstEquipInterface) {
+        // Calcular una IP en la misma red
+        const ipParts = firstEquipInterface.IP.split('.');
+        const destIP = `${ipParts[0]}.${ipParts[1]}.${ipParts[2]}.254`;
+
+        suggestions.push({
+          name: 'Red directa',
+          description: `Destino en la misma red del origen (${firstEquipInterface.Red}${firstEquipInterface.Mascara})`,
+          sourceEquipment: firstEquip,
+          sourceIP: firstEquipInterface.IP,
+          destIP: destIP
+        });
+      }
+    }
+
+    // Agregar pruebas entre equipos con múltiples interfaces
+    const equiposWithMultipleInterfaces = uniqueEquipos.filter(eq =>
+      equipos.filter(e => e.Equipo === eq).length > 1
+    );
+
+    if (equiposWithMultipleInterfaces.length >= 2) {
+      const sourceEquip = equiposWithMultipleInterfaces[0];
+      const targetEquip = equiposWithMultipleInterfaces[1];
+
+      const sourceInterfaces = equipos.filter(e => e.Equipo === sourceEquip);
+      const targetInterfaces = equipos.filter(e => e.Equipo === targetEquip);
+
+      if (sourceInterfaces[0] && targetInterfaces[0]) {
+        suggestions.push({
+          name: `Múltiples interfaces (${sourceEquip} → ${targetEquip})`,
+          description: `Equipos con varias redes configuradas`,
+          sourceEquipment: sourceEquip,
+          sourceIP: sourceInterfaces[0].IP,
+          destIP: targetInterfaces[targetInterfaces.length - 1].IP
+        });
+      }
+    }
+
+    return suggestions;
+  };
+
+  const testSuggestions = generateTestSuggestions();
 
   // Cargar sugerencia de prueba
   const loadTestSuggestion = (suggestion) => {

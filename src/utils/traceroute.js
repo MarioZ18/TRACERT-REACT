@@ -35,12 +35,21 @@ const findNextEquipmentByGatewayIP = (gatewayIP, networkData) => {
 const findRouteEntry = (equipmentName, destIP, routingTable) => {
   const equipmentRoutes = routingTable.filter(r => r.Equipo === equipmentName);
   const matches = equipmentRoutes.filter(r => isIPInNetwork(destIP, r.IP_Destino, r.Mascara));
-  if (matches.length === 0) return null;
-  return matches.reduce((best, current) => {
-    const bestMask = parseInt(best.Mascara.replace('/', ''));
-    const currentMask = parseInt(current.Mascara.replace('/', ''));
-    return currentMask > bestMask ? current : best;
-  });
+
+
+  if (matches.length > 0) {
+    return matches.reduce((best, current) => {
+      const bestMask = parseInt(best.Mascara.replace('/', ''));
+      const currentMask = parseInt(current.Mascara.replace('/', ''));
+      return currentMask > bestMask ? current : best;
+    });
+  }
+
+  const defaultRoute = equipmentRoutes.find(r => 
+    r.IP_Destino === "0.0.0.0" && r.Mascara === "/0"
+  );
+
+  return defaultRoute || null;
 };
 
 // Función principal

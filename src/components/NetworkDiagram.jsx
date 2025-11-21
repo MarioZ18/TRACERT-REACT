@@ -224,8 +224,8 @@ const NetworkDiagram = ({ networkData, traceResult, onNetworkUpdate, routingData
   };
 
   useEffect(() => {
-    console.log('networkData recibido:', networkData);
-    console.log('traceResult recibido:', traceResult);
+    //console.log('networkData recibido:', networkData);
+    //console.log('traceResult recibido:', traceResult);
 
     if (!networkData || networkData.length === 0) {
       setNodes([]);
@@ -235,7 +235,7 @@ const NetworkDiagram = ({ networkData, traceResult, onNetworkUpdate, routingData
 
     // Nodos únicos
     const equipos = [...new Set(networkData.map(r => r.Equipo))];
-    console.log('Equipos únicos:', equipos);
+    //console.log('Equipos únicos:', equipos);
 
     const newNodes = equipos.map((equipo, index) => {
       const angle = (index / equipos.length) * 2 * Math.PI;
@@ -340,10 +340,10 @@ const NetworkDiagram = ({ networkData, traceResult, onNetworkUpdate, routingData
     }
 
     // Logs finales
-    console.log('Nodos generados:', newNodes);
-    console.log('Edges automáticos:', autoEdges);
-    console.log('Edges manuales:', validManualEdges);
-    console.log('Edges combinados:', combinedEdges);
+    //console.log('Nodos generados:', newNodes);
+    //console.log('Edges automáticos:', autoEdges);
+    //console.log('Edges manuales:', validManualEdges);
+    //console.log('Edges combinados:', combinedEdges);
 
     setNodes(newNodes);
     setEdges(combinedEdges);

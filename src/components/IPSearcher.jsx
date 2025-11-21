@@ -331,7 +331,7 @@ const IPSearcher = ({ isOpen, onClose, routingData, networkData }) => {
 
                           {searchResults.matches.map((m, idx) => (
                             <div key={idx} className="mt-2 bg-green-100 p-2 rounded text-xs font-mono">
-                              {m.Equipo}: {m.IP} (VLAN {m.VLAN})
+                              <b>{m.Equipo}:</b> <br></br>{m.IP} (VLAN {m.VLAN})
                             </div>
                           ))}
                         </div>
@@ -340,13 +340,13 @@ const IPSearcher = ({ isOpen, onClose, routingData, networkData }) => {
                       {/* IP pertenece a redes */}
                       {searchResults.networksContainingIP?.length > 0 && (
                         <div className="bg-purple-50 border border-purple-200 rounded-md p-3">
-                          <p className="text-sm font-semibold text-purple-900">
+                          <p5 className="text-sm font-semibold text-purple-900">
                             La IP pertenece a las siguientes redes:
-                          </p>
+                          </p5>
 
                           {searchResults.networksContainingIP.map((net, idx) => (
                             <div key={idx} className="mt-2 bg-purple-100 p-2 rounded text-xs font-mono">
-                              {net.Equipo}: <br></br>{net.Red}{net.Mascara} (VLAN {net.VLAN})
+                              <b>{net.Equipo}: </b><br></br>{net.Red}{net.Mascara} (VLAN {net.VLAN})
                             </div>
 
 
